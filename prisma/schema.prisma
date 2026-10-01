@@ -1,11 +1,7 @@
 // refdesk — personal resource manager
 //
-// Schema is designed so additional resource types (PDF, PPTX, Excel, Note, Prompt)
-// can be added later without breaking existing Link data.
-//
-// MVP: only ResourceType.LINK is used. Future types can reuse the shared Resource
-// columns and add type-specific fields (fileKey, mime, note body, etc.) on this
-// model or on dedicated side tables keyed by resource id.
+// Shared Resource model for all resource types.
+// Existing LINK rows remain valid after enum/column expansion (nullable file fields).
 
 generator client {
   provider = "prisma-client-js"
@@ -18,20 +14,29 @@ datasource db {
 
 enum ResourceType {
   LINK
-  // Reserved for future resource types:
-  // PDF
-  // PPTX
-  // EXCEL
-  // NOTE
-  // PROMPT
+  PDF
+  EXCEL
+  PPTX
+  DOCX
+  IMAGE
 }
 
 model Resource {
   id          String       @id @default(cuid())
   type        ResourceType @default(LINK)
   title       String
-  /// Required for LINK resources. Reserved/null for future non-link types.
+
+  /// Link target (required for LINK; null for file types)
   url         String?
+
+  /// File metadata (required for file types; null for LINK)
+  fileName    String?
+  /// Provider-specific object key (e.g. R2 key or local uploads path)
+  storageKey  String?
+  mimeType    String?
+  /// Size in bytes
+  fileSize    Int?
+
   description String?
   category    String?
   tags        String[]     @default([])
@@ -43,4 +48,5 @@ model Resource {
   @@index([category])
   @@index([favorite])
   @@index([createdAt])
+  @@index([fileName])
 }

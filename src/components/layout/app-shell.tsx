@@ -1,10 +1,14 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { Suspense, useState, type ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+function SidebarFallback() {
+  return <div className="hidden h-screen w-64 border-r bg-card lg:block" />;
+}
 
 type AppShellProps = {
   children: ReactNode;
@@ -26,7 +30,9 @@ export function AppShell({ children }: AppShellProps) {
       <div className="flex min-h-screen">
         <div className="hidden lg:block">
           <div className="sticky top-0 h-screen">
-            <AppSidebar />
+            <Suspense fallback={<SidebarFallback />}>
+              <AppSidebar />
+            </Suspense>
           </div>
         </div>
 
@@ -36,11 +42,13 @@ export function AppShell({ children }: AppShellProps) {
             mobileOpen ? "pointer-events-auto" : "pointer-events-none"
           )}
         >
-          <AppSidebar
-            open={mobileOpen}
-            onClose={() => setMobileOpen(false)}
-            onNavigate={() => setMobileOpen(false)}
-          />
+          <Suspense fallback={null}>
+            <AppSidebar
+              open={mobileOpen}
+              onClose={() => setMobileOpen(false)}
+              onNavigate={() => setMobileOpen(false)}
+            />
+          </Suspense>
         </div>
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -57,7 +65,7 @@ export function AppShell({ children }: AppShellProps) {
             <div className="min-w-0">
               <h1 className="truncate text-lg font-semibold tracking-tight">Dashboard</h1>
               <p className="truncate text-xs text-muted-foreground">
-                Manage your personal links in one place
+                Links, files, and personal resources in one place
               </p>
             </div>
           </header>

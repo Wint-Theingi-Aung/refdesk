@@ -26,8 +26,8 @@ export default function Error({
           <CardTitle>Something went wrong</CardTitle>
           <CardDescription>
             refdesk could not load this page. If you are developing locally, make sure PostgreSQL
-            (Neon) is configured in <code className="font-mono text-xs">.env</code> and the
-            database schema has been pushed.
+            (Neon) is configured in <code className="font-mono text-xs">.env</code>, the schema has
+            been pushed, and file storage (R2 or local) is set up for uploads.
           </CardDescription>
         </CardHeader>
         <CardContent className="flex justify-center">

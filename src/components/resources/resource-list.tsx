@@ -7,15 +7,22 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ResourceCard } from "@/components/resources/resource-card";
+import { RESOURCE_TYPE_META, type ResourceTypeId } from "@/lib/constants";
 import type { ResourceDTO } from "@/types/resource";
 
 type ResourceListProps = {
   resources: ResourceDTO[];
   categories: string[];
   filtersActive: boolean;
+  typeFilter?: ResourceTypeId | null;
 };
 
-export function ResourceList({ resources, categories, filtersActive }: ResourceListProps) {
+export function ResourceList({
+  resources,
+  categories,
+  filtersActive,
+  typeFilter,
+}: ResourceListProps) {
   if (resources.length === 0) {
     return (
       <Card className="border-dashed">
@@ -27,12 +34,14 @@ export function ResourceList({ resources, categories, filtersActive }: ResourceL
           )}
           <div className="space-y-1">
             <p className="font-medium">
-              {filtersActive ? "No links match your filters" : "No links yet"}
+              {filtersActive
+                ? "No resources match your filters"
+                : "No resources yet"}
             </p>
             <p className="max-w-sm text-sm text-muted-foreground">
               {filtersActive
-                ? "Try adjusting your search or category filter."
-                : "Add your first link to start building your personal resource desk."}
+                ? "Try adjusting your search, type, or category filter."
+                : "Add a link or upload a file to start building your personal resource desk."}
             </p>
           </div>
         </CardContent>
@@ -65,4 +74,8 @@ export function ResourceListHeader({
       <CardDescription>{description}</CardDescription>
     </CardHeader>
   );
+}
+
+export function resourceListTitle(typeFilter: ResourceTypeId | null): string {
+  return typeFilter ? RESOURCE_TYPE_META[typeFilter].label : "Resources";
 }

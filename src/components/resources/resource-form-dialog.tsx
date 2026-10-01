@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useTransition, type FormEvent } from "react";
-import { Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState, useTransition, type FormEvent } from "react";
+import { Loader2, Upload } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,9 +15,19 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
-import { parseTagsInput } from "@/lib/utils";
-import { createLink, updateLink } from "@/actions/resources";
-import { SUGGESTED_CATEGORIES } from "@/lib/constants";
+import { parseTagsInput, formatFileSize, sanitizeFileName } from "@/lib/utils";
+import { createFileResource, createLink, updateResource } from "@/actions/resources";
+import {
+  FILE_RESOURCE_TYPES,
+  RESOURCE_TYPE,
+  RESOURCE_TYPE_META,
+  RESOURCE_TYPE_IDS,
+  getMaxFileSizeBytes,
+  isFileResourceType,
+  type ResourceTypeId,
+} from "@/lib/constants";
+import { validateUploadedFile } from "@/lib/validations/resource";
+import { ResourceTypeIcon } from "@/components/resources/resource-type-icon";
 import type { ResourceDTO } from "@/types/resource";
 
 type ResourceFormDialogProps = {
@@ -26,9 +36,12 @@ type ResourceFormDialogProps = {
   mode: "create" | "edit";
   resource?: ResourceDTO;
   categories: string[];
+  /** Preselect type when creating (from sidebar “Add PDF” style actions). */
+  initialType?: ResourceTypeId;
 };
 
 type FormState = {
+  type: ResourceTypeId;
   title: string;
   url: string;
   description: string;
@@ -37,14 +50,17 @@ type FormState = {
   favorite: boolean;
 };
 
-const emptyForm: FormState = {
-  title: "",
-  url: "",
-  description: "",
-  category: "",
-  tags: "",
-  favorite: false,
-};
+function emptyForm(type: ResourceTypeId = RESOURCE_TYPE.LINK): FormState {
+  return {
+    type,
+    title: "",
+    url: "",
+    description: "",
+    category: "",
+    tags: "",
+    favorite: false,
+  };
+}
 
 export function ResourceFormDialog({
   open,
@@ -52,20 +68,26 @@ export function ResourceFormDialog({
   mode,
   resource,
   categories,
+  initialType,
 }: ResourceFormDialogProps) {
-  const [form, setForm] = useState<FormState>(emptyForm);
+  const [form, setForm] = useState<FormState>(emptyForm());
+  const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [isPending, startTransition] = useTransition();
+
+  const maxFileSize = useMemo(() => getMaxFileSizeBytes(), []);
 
   useEffect(() => {
     if (!open) return;
 
     setError(null);
     setFieldErrors({});
+    setFile(null);
 
     if (mode === "edit" && resource) {
       setForm({
+        type: resource.type,
         title: resource.title,
         url: resource.url ?? "",
         description: resource.description ?? "",
@@ -74,68 +96,238 @@ export function ResourceFormDialog({
         favorite: resource.favorite,
       });
     } else {
-      setForm(emptyForm);
+      setForm(emptyForm(initialType ?? RESOURCE_TYPE.LINK));
     }
-  }, [open, mode, resource]);
+  }, [open, mode, resource, initialType]);
+
+  const isEditingFile = mode === "edit" && resource && isFileResourceType(resource.type);
+  const isEditingLink = mode === "edit" && resource && resource.type === RESOURCE_TYPE.LINK;
+  const isCreating = mode === "create";
+  const selectedIsFile = isFileResourceType(form.type);
 
   const categoryOptions = [
     { value: "", label: "Uncategorized" },
-    ...Array.from(new Set([...SUGGESTED_CATEGORIES, ...categories])).map((category) => ({
+    ...Array.from(new Set([...categories, ...[]])).map((category) => ({
       value: category,
       label: category,
     })),
   ];
+
+  const typeOptions = RESOURCE_TYPE_IDS.map((type) => ({
+    value: type,
+    label: RESOURCE_TYPE_META[type].label,
+  }));
+
+  const acceptAttribute = useMemo(() => {
+    if (!selectedIsFile) return undefined;
+    const configExtensions = {
+      PDF: ".pdf",
+      EXCEL: ".xlsx,.xls",
+      PPTX: ".pptx,.ppt",
+      DOCX: ".docx,.doc",
+      IMAGE: ".png,.jpg,.jpeg,.gif,.webp,.svg",
+    } as const;
+    return configExtensions[form.type as keyof typeof configExtensions];
+  }, [selectedIsFile, form.type]);
+
+  const handleFileSelected = (selected: File | null) => {
+    setError(null);
+    setFieldErrors((prev) => ({ ...prev, file: [] }));
+    if (!selected) {
+      setFile(null);
+      return;
+    }
+
+    const validationError = validateUploadedFile(form.type, {
+      name: selected.name,
+      size: selected.size,
+      type: selected.type,
+    });
+
+    if (validationError) {
+      setFile(null);
+      setError(validationError);
+      setFieldErrors((prev) => ({ ...prev, file: [validationError] }));
+      return;
+    }
+
+    setFile(selected);
+    // Default title from filename when title is empty
+    setForm((prev) => ({
+      ...prev,
+      title: prev.title.trim() ? prev.title : sanitizeFileName(selected.name).replace(/\.[^.]+$/, ""),
+    }));
+  };
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError(null);
     setFieldErrors({});
 
-    const payload = {
-      title: form.title.trim(),
-      url: form.url.trim(),
-      description: form.description.trim() || null,
-      category: form.category.trim() || null,
-      tags: parseTagsInput(form.tags),
-      favorite: form.favorite,
-      ...(mode === "edit" && resource ? { id: resource.id } : {}),
-    };
+    // Client-side validation before network call
+    if (mode === "create" && selectedIsFile) {
+      if (!file) {
+        const message = "Choose a file to upload.";
+        setError(message);
+        setFieldErrors({ file: [message] });
+        return;
+      }
+      const validationError = validateUploadedFile(form.type, {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      });
+      if (validationError) {
+        setError(validationError);
+        setFieldErrors({ file: [validationError] });
+        return;
+      }
+    }
+
+    if (mode === "create" && form.type === RESOURCE_TYPE.LINK && !form.url.trim()) {
+      const message = "URL is required.";
+      setError(message);
+      setFieldErrors({ url: [message] });
+      return;
+    }
+
+    if (mode === "edit" && resource && resource.type === RESOURCE_TYPE.LINK && !form.url.trim()) {
+      const message = "URL is required.";
+      setError(message);
+      setFieldErrors({ url: [message] });
+      return;
+    }
 
     startTransition(async () => {
-      const result = mode === "edit" ? await updateLink(payload) : await createLink(payload);
+      if (mode === "edit" && resource) {
+        const payload = {
+          id: resource.id,
+          title: form.title.trim(),
+          description: form.description.trim() || null,
+          category: form.category.trim() || null,
+          tags: parseTagsInput(form.tags),
+          favorite: form.favorite,
+          ...(resource.type === RESOURCE_TYPE.LINK
+            ? { url: form.url.trim() }
+            : {}),
+        };
 
-      if (!result.success) {
-        setError(result.error);
-        if (result.fieldErrors) {
-          setFieldErrors(result.fieldErrors);
+        const result = await updateResource(payload);
+        if (!result.success) {
+          setError(result.error);
+          if (result.fieldErrors) setFieldErrors(result.fieldErrors);
+          return;
         }
+        onOpenChange(false);
         return;
       }
 
+      // Create
+      if (form.type === RESOURCE_TYPE.LINK) {
+        const result = await createLink({
+          title: form.title.trim(),
+          url: form.url.trim(),
+          description: form.description.trim() || null,
+          category: form.category.trim() || null,
+          tags: parseTagsInput(form.tags),
+          favorite: form.favorite,
+        });
+        if (!result.success) {
+          setError(result.error);
+          if (result.fieldErrors) setFieldErrors(result.fieldErrors);
+          return;
+        }
+        onOpenChange(false);
+        return;
+      }
+
+      if (!file) {
+        const message = "Choose a file to upload.";
+        setError(message);
+        setFieldErrors({ file: [message] });
+        return;
+      }
+
+      const formData = new FormData();
+      formData.set("type", form.type);
+      formData.set("title", form.title.trim());
+      formData.set("description", form.description.trim());
+      formData.set("category", form.category.trim());
+      formData.set("tags", parseTagsInput(form.tags).join(", "));
+      formData.set("favorite", form.favorite ? "true" : "false");
+      formData.set("file", file);
+
+      const result = await createFileResource(formData);
+      if (!result.success) {
+        setError(result.error);
+        if (result.fieldErrors) setFieldErrors(result.fieldErrors);
+        return;
+      }
       onOpenChange(false);
     });
   };
+
+  const dialogTitle =
+    mode === "edit"
+      ? isEditingFile
+        ? "Edit file resource"
+        : "Edit link"
+      : selectedIsFile
+        ? `Add ${RESOURCE_TYPE_META[form.type].label}`
+        : "Add link";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{mode === "edit" ? "Edit link" : "Add link"}</DialogTitle>
+          <DialogTitle>{dialogTitle}</DialogTitle>
           <DialogDescription>
             {mode === "edit"
-              ? "Update the details for this saved link."
-              : "Save a new link to your personal resource desk."}
+              ? isEditingFile
+                ? "Update the details for this saved file."
+                : "Update the details for this saved link."
+              : selectedIsFile
+                ? "Upload a file and save it to your resource desk."
+                : "Save a new link to your personal resource desk."}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {isCreating ? (
+            <div className="space-y-2">
+              <Label htmlFor="resource-type">Resource type</Label>
+              <Select
+                id="resource-type"
+                value={form.type}
+                onChange={(event) => {
+                  const next = event.target.value as ResourceTypeId;
+                  setForm((prev) => ({ ...prev, type: next }));
+                  setFile(null);
+                  setError(null);
+                  setFieldErrors({});
+                }}
+                options={typeOptions}
+              />
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <ResourceTypeIcon type={form.type} className="h-7 w-7" />
+                {selectedIsFile
+                  ? "File upload — supported formats vary by type."
+                  : "Link — save a URL with optional notes."}
+              </div>
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label htmlFor="title">Title</Label>
             <Input
               id="title"
               value={form.title}
               onChange={(event) => setForm((prev) => ({ ...prev, title: event.target.value }))}
-              placeholder="Next.js documentation"
+              placeholder={
+                selectedIsFile || isEditingFile
+                  ? "Quarterly budget"
+                  : "Next.js documentation"
+              }
               required
               maxLength={200}
             />
@@ -144,21 +336,92 @@ export function ResourceFormDialog({
             ) : null}
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="url">URL</Label>
-            <Input
-              id="url"
-              type="url"
-              value={form.url}
-              onChange={(event) => setForm((prev) => ({ ...prev, url: event.target.value }))}
-              placeholder="https://nextjs.org/docs"
-              required
-              maxLength={2048}
-            />
-            {fieldErrors.url?.[0] ? (
-              <p className="text-xs text-destructive">{fieldErrors.url[0]}</p>
-            ) : null}
-          </div>
+          {isCreating && form.type === RESOURCE_TYPE.LINK ? (
+            <div className="space-y-2">
+              <Label htmlFor="url">URL</Label>
+              <Input
+                id="url"
+                type="url"
+                value={form.url}
+                onChange={(event) => setForm((prev) => ({ ...prev, url: event.target.value }))}
+                placeholder="https://nextjs.org/docs"
+                required
+                maxLength={2048}
+              />
+              {fieldErrors.url?.[0] ? (
+                <p className="text-xs text-destructive">{fieldErrors.url[0]}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isEditingLink ? (
+            <div className="space-y-2">
+              <Label htmlFor="url">URL</Label>
+              <Input
+                id="url"
+                type="url"
+                value={form.url}
+                onChange={(event) => setForm((prev) => ({ ...prev, url: event.target.value }))}
+                placeholder="https://nextjs.org/docs"
+                required
+                maxLength={2048}
+              />
+              {fieldErrors.url?.[0] ? (
+                <p className="text-xs text-destructive">{fieldErrors.url[0]}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isCreating && selectedIsFile ? (
+            <div className="space-y-2">
+              <Label htmlFor="file">File</Label>
+              <div className="flex flex-col gap-2 rounded-md border border-dashed border-input p-3">
+                <Input
+                  id="file"
+                  type="file"
+                  accept={acceptAttribute}
+                  onChange={(event) => handleFileSelected(event.target.files?.[0] ?? null)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Allowed:{" "}
+                  {(() => {
+                    const map: Record<string, string> = {
+                      PDF: ".pdf",
+                      EXCEL: ".xlsx, .xls",
+                      PPTX: ".pptx, .ppt",
+                      DOCX: ".docx, .doc",
+                      IMAGE: ".png, .jpg, .jpeg, .gif, .webp, .svg",
+                    };
+                    return map[form.type] ?? "";
+                  })()}
+                  {" · "}Max {formatFileSize(maxFileSize)}
+                </p>
+                {file ? (
+                  <p className="flex items-center gap-1.5 text-xs text-foreground">
+                    <Upload className="h-3.5 w-3.5" />
+                    {file.name} ({formatFileSize(file.size)})
+                  </p>
+                ) : null}
+              </div>
+              {fieldErrors.file?.[0] ? (
+                <p className="text-xs text-destructive">{fieldErrors.file[0]}</p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {isEditingFile && resource ? (
+            <div className="rounded-md border bg-muted/40 p-3 text-xs text-muted-foreground">
+              <p className="font-medium text-foreground">Current file</p>
+              <p className="mt-1 truncate">
+                {resource.fileName ?? "—"}
+                {resource.fileSize ? ` · ${formatFileSize(resource.fileSize)}` : ""}
+              </p>
+              <p className="mt-1">
+                Editing updates metadata only. To replace the file, delete this resource and
+                upload a new one.
+              </p>
+            </div>
+          ) : null}
 
           <div className="space-y-2">
             <Label htmlFor="description">Description</Label>
@@ -168,7 +431,7 @@ export function ResourceFormDialog({
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, description: event.target.value }))
               }
-              placeholder="Optional notes about this link"
+              placeholder="Optional notes"
               maxLength={2000}
               rows={3}
             />
@@ -243,6 +506,8 @@ export function ResourceFormDialog({
                 </>
               ) : mode === "edit" ? (
                 "Save changes"
+              ) : selectedIsFile ? (
+                "Upload & save"
               ) : (
                 "Add link"
               )}
@@ -253,3 +518,5 @@ export function ResourceFormDialog({
     </Dialog>
   );
 }
+
+export { FILE_RESOURCE_TYPES };

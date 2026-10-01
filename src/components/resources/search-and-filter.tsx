@@ -6,7 +6,12 @@ import { Search, SlidersHorizontal, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { SUGGESTED_CATEGORIES } from "@/lib/constants";
+import {
+  RESOURCE_TYPE_META,
+  RESOURCE_TYPE_IDS,
+  SUGGESTED_CATEGORIES,
+  type ResourceTypeId,
+} from "@/lib/constants";
 import { cn } from "@/lib/utils";
 
 type SearchAndFilterProps = {
@@ -21,6 +26,7 @@ export function SearchAndFilter({ categories, className }: SearchAndFilterProps)
 
   const activeSearch = searchParams.get("q") ?? "";
   const activeCategory = searchParams.get("category") ?? "";
+  const activeType = searchParams.get("type") ?? "";
   const activeFavorites = searchParams.get("favorites") === "true";
 
   const [searchValue, setSearchValue] = useState(activeSearch);
@@ -63,13 +69,21 @@ export function SearchAndFilter({ categories, className }: SearchAndFilterProps)
     router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
   };
 
-  const hasActiveFilters = Boolean(activeSearch || activeCategory || activeFavorites);
+  const hasActiveFilters = Boolean(activeSearch || activeCategory || activeType || activeFavorites);
 
   const categoryOptions = [
     { value: "", label: "All categories" },
     ...Array.from(new Set([...SUGGESTED_CATEGORIES, ...categories])).map((category) => ({
       value: category,
       label: category,
+    })),
+  ];
+
+  const typeOptions = [
+    { value: "", label: "All resource types" },
+    ...RESOURCE_TYPE_IDS.map((type: ResourceTypeId) => ({
+      value: type,
+      label: RESOURCE_TYPE_META[type].label,
     })),
   ];
 
@@ -80,9 +94,9 @@ export function SearchAndFilter({ categories, className }: SearchAndFilterProps)
         <Input
           value={searchValue}
           onChange={(event) => setSearchValue(event.target.value)}
-          placeholder="Search by title, URL, description, or tag…"
+          placeholder="Search by title, description, category, tag, or filename…"
           className="pl-9 pr-9"
-          aria-label="Search links"
+          aria-label="Search resources"
         />
         {searchValue ? (
           <Button
@@ -101,6 +115,13 @@ export function SearchAndFilter({ categories, className }: SearchAndFilterProps)
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex flex-1 items-center gap-2">
           <SlidersHorizontal className="h-4 w-4 shrink-0 text-muted-foreground" />
+          <Select
+            value={activeType}
+            onChange={(event) => updateParam("type", event.target.value || null)}
+            options={typeOptions}
+            aria-label="Filter by resource type"
+            className="max-w-[180px]"
+          />
           <Select
             value={activeCategory}
             onChange={(event) => updateParam("category", event.target.value || null)}
