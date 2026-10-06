@@ -69,3 +69,4 @@ Use skills when the task matches a named workflow:
 * Sharing / public links beyond optional R2 public URL  
 * Notifications  
 * Exercise #4 meta-work is this agent/skill/CLAUDE setup only — do not expand it further unless asked  
+* Exercise #5: Markdown bullet transformation; compared direct editing with CLI regex (`sed`/`perl`) and verified with `git diff`
