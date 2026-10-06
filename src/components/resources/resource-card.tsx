@@ -232,6 +232,7 @@ export function ResourceCard({ resource, categories }: ResourceCardProps) {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title={resource.title}
+        typeLabel={meta.label}
         onConfirm={handleDelete}
       />
     </>

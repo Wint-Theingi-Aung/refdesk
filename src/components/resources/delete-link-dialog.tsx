@@ -16,6 +16,8 @@ type DeleteLinkDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  /** Human label for the resource type, e.g. "Link", "PDF", "Excel". */
+  typeLabel?: string;
   /** Returns an error message, or null/undefined on success. */
   onConfirm: () => Promise<string | null | void>;
 };
@@ -24,6 +26,7 @@ export function DeleteLinkDialog({
   open,
   onOpenChange,
   title,
+  typeLabel = "Link",
   onConfirm,
 }: DeleteLinkDialogProps) {
   const [isPending, startTransition] = useTransition();
@@ -40,7 +43,7 @@ export function DeleteLinkDialog({
         }
         onOpenChange(false);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to delete link.");
+        setError(err instanceof Error ? err.message : `Failed to delete ${typeLabel.toLowerCase()}.`);
       }
     });
   };
@@ -51,7 +54,7 @@ export function DeleteLinkDialog({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Trash2 className="h-5 w-5 text-destructive" />
-            Delete link?
+            Delete {typeLabel}?
           </DialogTitle>
           <DialogDescription>
             You are about to permanently delete{" "}
@@ -82,7 +85,7 @@ export function DeleteLinkDialog({
                 Deleting…
               </>
             ) : (
-              "Delete link"
+              `Delete ${typeLabel}`
             )}
           </Button>
         </DialogFooter>

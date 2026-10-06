@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select } from "@/components/ui/select";
 import { parseTagsInput, formatFileSize, sanitizeFileName } from "@/lib/utils";
-import { createFileResource, createLink, updateResource } from "@/actions/resources";
+import { createFileResource, createLink, updateFileResource, updateResource } from "@/actions/resources";
 import {
   FILE_RESOURCE_TYPES,
   RESOURCE_TYPE,
@@ -104,6 +104,7 @@ export function ResourceFormDialog({
   const isEditingLink = mode === "edit" && resource && resource.type === RESOURCE_TYPE.LINK;
   const isCreating = mode === "create";
   const selectedIsFile = isFileResourceType(form.type);
+  const showFileReplace = Boolean(isCreating && selectedIsFile) || Boolean(isEditingFile);
 
   const categoryOptions = [
     { value: "", label: "Uncategorized" },
@@ -184,6 +185,19 @@ export function ResourceFormDialog({
       }
     }
 
+    if (mode === "edit" && isEditingFile && file) {
+      const validationError = validateUploadedFile(resource!.type, {
+        name: file.name,
+        size: file.size,
+        type: file.type,
+      });
+      if (validationError) {
+        setError(validationError);
+        setFieldErrors({ file: [validationError] });
+        return;
+      }
+    }
+
     if (mode === "create" && form.type === RESOURCE_TYPE.LINK && !form.url.trim()) {
       const message = "URL is required.";
       setError(message);
@@ -200,6 +214,29 @@ export function ResourceFormDialog({
 
     startTransition(async () => {
       if (mode === "edit" && resource) {
+        // File resources: optional replacement upload; no file = metadata only
+        if (isFileResourceType(resource.type)) {
+          if (file) {
+            const formData = new FormData();
+            formData.set("id", resource.id);
+            formData.set("title", form.title.trim());
+            formData.set("description", form.description.trim());
+            formData.set("category", form.category.trim());
+            formData.set("tags", parseTagsInput(form.tags).join(", "));
+            formData.set("favorite", form.favorite ? "true" : "false");
+            formData.set("file", file);
+
+            const replaceResult = await updateFileResource(formData);
+            if (!replaceResult.success) {
+              setError(replaceResult.error);
+              if (replaceResult.fieldErrors) setFieldErrors(replaceResult.fieldErrors);
+              return;
+            }
+            onOpenChange(false);
+            return;
+          }
+        }
+
         const payload = {
           id: resource.id,
           title: form.title.trim(),
@@ -372,7 +409,7 @@ export function ResourceFormDialog({
             </div>
           ) : null}
 
-          {isCreating && selectedIsFile ? (
+          {showFileReplace ? (
             <div className="space-y-2">
               <Label htmlFor="file">File</Label>
               <div className="flex flex-col gap-2 rounded-md border border-dashed border-input p-3">
@@ -392,7 +429,7 @@ export function ResourceFormDialog({
                       DOCX: ".docx, .doc",
                       IMAGE: ".png, .jpg, .jpeg, .gif, .webp, .svg",
                     };
-                    return map[form.type] ?? "";
+                    return map[isEditingFile && resource ? resource.type : form.type] ?? "";
                   })()}
                   {" · "}Max {formatFileSize(maxFileSize)}
                 </p>
@@ -417,8 +454,9 @@ export function ResourceFormDialog({
                 {resource.fileSize ? ` · ${formatFileSize(resource.fileSize)}` : ""}
               </p>
               <p className="mt-1">
-                Editing updates metadata only. To replace the file, delete this resource and
-                upload a new one.
+                {file
+                  ? "A new file is selected — it will replace the stored file when you save."
+                  : "Leave the file field empty to keep the current file. Select a new file to replace it."}
               </p>
             </div>
           ) : null}

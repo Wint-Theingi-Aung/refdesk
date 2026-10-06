@@ -420,6 +420,163 @@ export async function updateResource(input: unknown): Promise<ActionResult<Resou
   }
 }
 
+/**
+ * Update a file-backed resource. When FormData includes a new file, stored
+ * bytes are replaced (old object cleaned up). Without a file, metadata only.
+ * formData: id, title, description?, category?, tags?, favorite?, file?
+ */
+export async function updateFileResource(
+  formData: FormData
+): Promise<ActionResult<ResourceDTO>> {
+  const id = String(formData.get("id") ?? "");
+  const idParsed = resourceIdSchema.safeParse({ id });
+  if (!idParsed.success) {
+    return { success: false, error: "Invalid resource id." };
+  }
+
+  const rawFile = formData.get("file");
+  const file = rawFile instanceof File && rawFile.size > 0 ? rawFile : null;
+
+  const tagsRaw = formData.get("tags");
+  const tags = Array.isArray(tagsRaw)
+    ? tagsRaw.map(String)
+    : String(tagsRaw ?? "")
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter(Boolean);
+
+  const metadataParsed = fileResourceMetadataSchema.safeParse({
+    title: String(formData.get("title") ?? ""),
+    description: String(formData.get("description") ?? "") || null,
+    category: String(formData.get("category") ?? "") || null,
+    tags,
+    favorite: formData.get("favorite") === "true" || formData.get("favorite") === "on",
+  });
+
+  if (!metadataParsed.success) {
+    return {
+      success: false,
+      error: "Please fix the highlighted fields.",
+      fieldErrors: fieldErrorsFromZod(metadataParsed.error),
+    };
+  }
+
+  try {
+    const existing = await prisma.resource.findUnique({ where: { id } });
+
+    if (!existing) {
+      return { success: false, error: "Resource not found." };
+    }
+
+    if (!isFileResourceType(existing.type)) {
+      return {
+        success: false,
+        error: "This resource type does not support file replacement.",
+      };
+    }
+
+    const metadataData = {
+      title: metadataParsed.data.title,
+      description: metadataParsed.data.description || null,
+      category: metadataParsed.data.category || null,
+      tags: metadataParsed.data.tags,
+      favorite: metadataParsed.data.favorite,
+    };
+
+    // No new file: keep existing fileName/storageKey/mimeType/fileSize
+    if (!file) {
+      const updated = await prisma.resource.update({
+        where: { id },
+        data: metadataData,
+      });
+      revalidatePath("/");
+      return { success: true, data: toDTO(updated) };
+    }
+
+    const type = existing.type as ResourceTypeId;
+    const fileError = validateUploadedFile(type, {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+    });
+    if (fileError) {
+      return {
+        success: false,
+        error: fileError,
+        fieldErrors: { file: [fileError] },
+      };
+    }
+
+    const safeName = sanitizeFileName(file.name);
+    const folder = randomUUID();
+    const storageKey = `resources/${type.toLowerCase()}/${folder}/${safeName}`;
+
+    let body: Uint8Array;
+    try {
+      body = new Uint8Array(await file.arrayBuffer());
+    } catch (error) {
+      console.error("updateFileResource read failed:", error);
+      return { success: false, error: "Could not read the uploaded file." };
+    }
+
+    try {
+      await getStorage().putObject({
+        key: storageKey,
+        body,
+        contentType: file.type || "application/octet-stream",
+        fileName: safeName,
+      });
+    } catch (error) {
+      console.error("updateFileResource storage failed:", error);
+      return {
+        success: false,
+        error: isStorageError(error)
+          ? error.message
+          : "File upload failed. Please try again.",
+      };
+    }
+
+    const previousKey = existing.storageKey;
+    try {
+      const updated = await prisma.resource.update({
+        where: { id },
+        data: {
+          ...metadataData,
+          fileName: safeName,
+          storageKey,
+          mimeType: file.type || "application/octet-stream",
+          fileSize: file.size,
+        },
+      });
+
+      if (previousKey && previousKey !== storageKey) {
+        try {
+          await getStorage().deleteObject(previousKey);
+        } catch (cleanupError) {
+          console.error("updateFileResource old object cleanup failed:", cleanupError);
+        }
+      }
+
+      revalidatePath("/");
+      return { success: true, data: toDTO(updated) };
+    } catch (error) {
+      console.error("updateFileResource db failed:", error);
+      try {
+        await getStorage().deleteObject(storageKey);
+      } catch (cleanupError) {
+        console.error("updateFileResource cleanup failed:", cleanupError);
+      }
+      return {
+        success: false,
+        error: "Could not update the file resource. Please try again.",
+      };
+    }
+  } catch (error) {
+    console.error("updateFileResource failed:", error);
+    return { success: false, error: "Could not update the file resource. Please try again." };
+  }
+}
+
 /* -------------------------------------------------------------------------- */
 /* Delete / favorite                                                           */
 /* -------------------------------------------------------------------------- */
