@@ -24,11 +24,19 @@ Database metadata lives in **Neon PostgreSQL** via Prisma. Uploaded files live i
 | `npm run lint` | ESLint (next/core-web-vitals) |
 | `npx tsc --noEmit` | TypeScript check |
 | `npx prisma validate` | Validate schema |
-| `npm run db:push` | Sync schema → Neon (additive-safe) |
-| `npm run db:migrate` | Prisma migrations |
+| `npm run db:migrate` | Create a **local** migration (`prisma migrate dev`) — not for Neon apply |
+| `npm run db:deploy` | Apply committed migrations to Neon (`prisma migrate deploy`) — **normal Neon path** |
+| `npm run db:push` | Local/dev schema prototyping only — **do not use on Neon** |
 | `npm run db:studio` | Prisma Studio |
 
-**After any Prisma schema change:** run `npx prisma generate`, then `npm run db:push` (or migrate), then `npm run build`.
+**Database workflow (Neon is Migrate-baselined):**
+
+- Live Neon already has `0001_baseline` applied via Prisma Migrate (`_prisma_migrations`).
+- After editing `prisma/schema.prisma`: `npx prisma generate` → create a migration with `npm run db:migrate` (dev machine) → commit the migration folder → apply to Neon with `npm run db:deploy` → `npm run build`.
+- **Do not** run `npm run db:push` against Neon.
+- **Do not** run `prisma migrate dev` against the existing Neon database.
+- **Never** run `prisma migrate reset` against the existing Neon database — it would drop live LINK/PDF/EXCEL rows.
+- `prisma/migrations/0001_baseline/migration.sql` matches the live schema; do not rewrite it. Add **new** migration folders for future changes only.
 
 ## Architecture
 

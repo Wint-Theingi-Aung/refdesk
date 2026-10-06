@@ -30,15 +30,17 @@ refdesk stores multiple resource types in one `Resource` table with a `type` dis
 4. Link-type rows keep `url`; file-type rows keep `fileName` / `storageKey` / `mimeType` / `fileSize`.
 5. Add an index only if you filter/sort on a new column often.
 
-Then run:
+Then run (Neon is Migrate-baselined with `0001_baseline`):
 
 ```bash
 npx prisma validate
 npx prisma generate
-npm run db:push
+npm run db:migrate   # local: create the new migration folder
+# commit prisma/migrations/<new_folder>/
+npm run db:deploy    # Neon: apply committed migrations
 ```
 
-Prefer `db:push` for additive work unless the project is using migrations (`npm run db:migrate`).
+Do **not** use `npm run db:push` on Neon. Do **not** `prisma migrate dev` against existing Neon. **Never** `prisma migrate reset` on this database. Keep `0001_baseline/migration.sql` unchanged.
 
 ### 2. Constants (`src/lib/constants.ts`)
 

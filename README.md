@@ -143,16 +143,24 @@ Default max upload size: **10 MiB** (override with `MAX_FILE_SIZE_BYTES`).
 
 ## Initialize the database (Prisma)
 
+Neon is **already Migrate-baselined**: `prisma/migrations/0001_baseline/` is applied in `_prisma_migrations`, and live schema matches `prisma/schema.prisma`.
+
 ```bash
 npm install
 npx prisma generate
-
-# Sync schema to Neon (additive — safe for existing LINK rows)
-npm run db:push
-
-# Or manage migrations
-npm run db:migrate
 ```
+
+Schema changes go through Prisma Migrate, **not** `db:push`:
+
+1. Edit `prisma/schema.prisma` (additive only when possible).
+2. `npx prisma validate` && `npx prisma generate`.
+3. Create a **local** migration: `npm run db:migrate` (`prisma migrate dev` on your machine — never pointed at production Neon for apply/reset).
+4. Commit the new folder under `prisma/migrations/`.
+5. Apply committed migrations to Neon: `npm run db:deploy` (`prisma migrate deploy`).
+
+**Do not** use `npm run db:push` on Neon — it bypasses migration history.
+
+**Never** run `prisma migrate reset` against the existing Neon database — it drops live LINK/PDF/EXCEL data. Do not rewrite `0001_baseline/migration.sql`.
 
 Optional:
 
@@ -164,8 +172,8 @@ npm run db:studio
 
 ```bash
 # 1. Configure .env (Neon DATABASE_URL + storage)
-# 2. Push schema
-npm run db:push
+# 2. Ensure Neon matches committed migrations
+npm run db:deploy
 
 # 3. Start dev server
 npm run dev
@@ -220,8 +228,9 @@ npm start
 | `npm run build` | Prisma generate + Next.js build |
 | `npm start` | Start production server |
 | `npm run db:generate` | Generate Prisma client |
-| `npm run db:push` | Sync schema to Neon |
-| `npm run db:migrate` | Create/manage migrations |
+| `npm run db:migrate` | Create a **local** migration (`prisma migrate dev`) — not for Neon apply |
+| `npm run db:deploy` | Apply committed migrations to Neon (`prisma migrate deploy`) |
+| `npm run db:push` | Local/dev schema prototyping only — **not** the Neon path |
 | `npm run db:studio` | Open Prisma Studio |
 
 ## Vercel deployment
@@ -237,7 +246,7 @@ npm start
    - `R2_BUCKET_NAME`
    - optional `R2_PUBLIC_URL`, `MAX_FILE_SIZE_BYTES`
 4. Build command: `npm run build` (includes `prisma generate`)
-5. Run `npm run db:push` once (locally or via a one-off job) to apply schema changes to Neon
+5. Apply committed Prisma migrations to Neon with `npm run db:deploy` (locally or via a one-off job) — **not** `db:push`
 6. Deploy
 
 > Do not set `STORAGE_PROVIDER=local` on Vercel — uploads will not persist.

@@ -17,12 +17,15 @@ description: This skill should be used when working on refdesk's Prisma + Neon P
 ```bash
 npx prisma validate          # schema syntax / validity
 npx prisma generate          # emit client to node_modules/@prisma/client
-npm run db:push              # sync schema to Neon (default for additive MVP work)
-npm run db:migrate           # create/apply named migrations
+npm run db:migrate           # LOCAL: create a migration (prisma migrate dev)
+npm run db:deploy            # NEON: apply committed migrations (prisma migrate deploy)
+npm run db:push              # LOCAL/dev prototyping only — do not use on Neon
 npm run db:studio            # browse data
 ```
 
-**Rule:** after editing `schema.prisma`, always `prisma generate` before `tsc`/`build`. After schema change intended for the app, run `db:push` (or migrate) against Neon.
+**Neon is Migrate-baselined:** `prisma/migrations/0001_baseline/` is already applied. Live schema matches `prisma/schema.prisma`.
+
+**Rule:** after editing `schema.prisma`, always `prisma generate` before `tsc`/`build`. For schema changes that must reach Neon: create a migration locally (`npm run db:migrate`), commit it, then `npm run db:deploy`. Do **not** `db:push` Neon. Do **not** `prisma migrate dev` against existing Neon. **Never** `prisma migrate reset` on this database.
 
 ## Model overview
 
@@ -50,15 +53,17 @@ Indexes: `type`, `category`, `favorite`, `createdAt`, `fileName`.
 4. **Do not** change cuids, tags array semantics, or timestamp behavior casually.
 5. Type-specific data lives on the same row (`url` vs `storageKey`) — do not split tables unless the user asks.
 
-## Data safety checklist (before push)
+## Data safety checklist (before deploy)
 
 - [ ] Read current `prisma/schema.prisma`
 - [ ] Confirm change is additive (or user explicitly wants a breaking change)
 - [ ] `npx prisma validate`
 - [ ] `npx prisma generate`
-- [ ] `npm run db:push` (or `npm run db:migrate`)
+- [ ] `npm run db:migrate` only on a **local/dev** database to author the migration
+- [ ] Commit migration folder; apply to Neon with `npm run db:deploy`
 - [ ] Spot-check: `SELECT type, COUNT(*) FROM "Resource" GROUP BY type;`
 - [ ] App still lists/edits/deletes existing `LINK` rows
+- [ ] Did **not** run `db:push`, `migrate dev` against Neon, or `migrate reset`
 
 ## Query patterns used by the app
 
@@ -75,7 +80,7 @@ Server code must go through `src/actions/resources.ts` or a thin API route — d
 |-------|--------------|-----|
 | `Environment variable not found: DATABASE_URL` | missing `.env` | copy `.env.example`, set Neon URL |
 | `P1001` can't reach DB | bad host / SSL / network | check pooler URL + `sslmode=require` |
-| `P2021` table does not exist | schema not pushed | `npm run db:push` |
+| `P2021` table does not exist | migration not applied to Neon | `npm run db:deploy` (never `db:push` on Neon) |
 | Client types stale after schema edit | forgot generate | `npx prisma generate` |
 | Invalid enum value | raw SQL insert of unknown type | use `ResourceType` values |
 
