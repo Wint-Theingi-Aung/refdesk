@@ -6,20 +6,20 @@ Full project instructions live in [`CLAUDE.md`](./CLAUDE.md). This file is the a
 
 ## What this project is
 
-- Next.js 14 + TypeScript + Tailwind + shadcn-style UI
-- **Neon PostgreSQL** + Prisma (not Supabase)
-- Resource types: `LINK`, `PDF`, `EXCEL`, `PPTX`, `DOCX`, `IMAGE`
-- Files stored via a **storage abstraction** (Cloudflare R2 in prod, `local` only in dev)
-- Metadata in Neon; file bytes never in the database
+* Next.js 14 + TypeScript + Tailwind + shadcn-style UI
+* **Neon PostgreSQL** + Prisma (not Supabase)
+* Resource types: `LINK`, `PDF`, `EXCEL`, `PPTX`, `DOCX`, `IMAGE`
+* Files stored via a **storage abstraction** (Cloudflare R2 in prod, `local` only in dev)
+* Metadata in Neon; file bytes never in the database
 
 ## Hard constraints
 
-- Keep existing **Link** CRUD/search/filter/favorite working
-- Preserve existing database rows; schema changes must be **additive** when possible
-- No authentication, AI features, sharing, or notifications unless asked
-- No hard-coded credentials; secrets only in env vars
-- Do not replace Neon, Prisma, or the storage abstraction without explicit instruction
-- Do not invent features outside the requested scope
+* Keep existing **Link** CRUD/search/filter/favorite working
+* Preserve existing database rows; schema changes must be **additive** when possible
+* No authentication, AI features, sharing, or notifications unless asked
+* No hard-coded credentials; secrets only in env vars
+* Do not replace Neon, Prisma, or the storage abstraction without explicit instruction
+* Do not invent features outside the requested scope
 
 ## When to dispatch which agent
 
@@ -40,7 +40,7 @@ Use skills when the task matches a named workflow:
 
 ## Shared contracts
 
-- **Server actions** (`src/actions/resources.ts`) return:
+* **Server actions** (`src/actions/resources.ts`) return:
 
   ```ts
   type ActionResult<T> =
@@ -48,10 +48,10 @@ Use skills when the task matches a named workflow:
     | { success: false; error: string; fieldErrors?: Record<string, string[]> };
   ```
 
-- **Zod** schemas live in `src/lib/validations/resource.ts`.
-- **Storage** is accessed only via `getStorage()` from `src/lib/storage`.
-- **File checks** use `validateUploadedFile` + `FILE_TYPE_CONFIG` in `src/lib/constants.ts`.
-- **Filters** use URL params: `q`, `type`, `category`, `favorites`.
+* **Zod** schemas live in `src/lib/validations/resource.ts`.
+* **Storage** is accessed only via `getStorage()` from `src/lib/storage`.
+* **File checks** use `validateUploadedFile` + `FILE_TYPE_CONFIG` in `src/lib/constants.ts`.
+* **Filters** use URL params: `q`, `type`, `category`, `favorites`.
 
 ## Quality bar before reporting done
 
@@ -64,8 +64,8 @@ Use skills when the task matches a named workflow:
 
 ## Out of scope (do not implement unprompted)
 
-- Auth / multi-user accounts  
-- AI features  
-- Sharing / public links beyond optional R2 public URL  
-- Notifications  
-- Exercise #4 meta-work is this agent/skill/CLAUDE setup only — do not expand it further unless asked  
+* Auth / multi-user accounts  
+* AI features  
+* Sharing / public links beyond optional R2 public URL  
+* Notifications  
+* Exercise #4 meta-work is this agent/skill/CLAUDE setup only — do not expand it further unless asked  
