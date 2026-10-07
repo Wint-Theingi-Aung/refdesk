@@ -2,6 +2,16 @@
 
 Short notes on the refdesk meta-work and code-quality exercises.
 
+## Exercise #3 — Vibe coding
+
+**Why refdesk**
+
+- Chose refdesk because I wanted a practical personal resource manager for storing and organizing links and different types of resources such as PDF, Excel, PPTX, DOCX, and images.
+
+**How it was built**
+
+- Built the app from scratch with the help of a coding agent, without manually writing the application code, as required by the exercise.
+
 ## Exercise #4 — Agent / skill setup
 
 **What was done**
