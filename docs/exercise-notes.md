@@ -67,3 +67,16 @@ perl -i -pe 's/^-/*/' /home/ycdc/refdesk/AGENTS.md
 5. Easy to over-edit spacing or unrelated hyphens when rewriting a whole file.
 
 Direct editing is fine for small, human-verified edits. For marker normalization, a line-anchored regex (`perl`/`sed`) is safer and repeatable.
+
+## Exercise #6 — Autonomous sandbox work
+
+**What was done**
+
+- Worked in the isolated sandbox on this repository.
+- Inspected the project, then made one small, harmless documentation-only change: this short “Exercise #6” note in `docs/exercise-notes.md`.
+- No source code, schema, `.env`, dependencies, or files outside the repo were modified.
+
+**What was learned**
+
+- Documentation-only exercises can be completed quickly once the existing notes format is matched.
+- Scoping the task to a single file keeps the change easy to review with `git diff`.
