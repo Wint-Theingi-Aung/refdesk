@@ -1,16 +1,44 @@
-# Exercise notes
+# Missing Semester 2026 — Agentic Coding Exercises
 
-Short notes on the refdesk meta-work and code-quality exercises.
+This file contains my notes and reflections for the exercises from the Agentic Coding chapter.
 
-## Exercise #3 — Vibe coding
+## Exercise #1 — Four Ways of Coding
+
+**What was done**
+
+- Compared four ways of working on software: manual coding, pair programming with a coding agent, agent-driven implementation, and fully autonomous agent workflows.
+- For each way, noted what the human still owns (intent, review, product decisions) versus what the agent can take on (boilerplate, refactors, multi-file edits).
+- Used the comparison to decide when to stay hands-on and when to let an agent drive the edit loop.
+
+**What was learned**
+
+- The four ways are modes on a spectrum, not a single right answer; the best fit depends on task size, risk, and how well the codebase is documented.
+- Clear instructions and review matter more as autonomy increases — vague prompts produce worse results when the agent writes most of the code.
+- Human judgment is still required for architecture, data safety, and anything that touches live systems.
+
+## Exercise #2 — Explore an Unfamiliar Codebase
+
+**What was done**
+
+- Used a coding agent to explore an unfamiliar codebase before changing anything.
+- Asked for the stack, entry points, directory layout, and how data flows from UI to storage.
+- Spot-checked agent findings against real files instead of accepting the summary at face value.
+
+**What was learned**
+
+- Exploration prompts work best when scoped: one question at a time (schema, storage, routes) rather than “explain the whole repo.”
+- Agent summaries are a map, not the territory — verify key claims in the source before acting.
+- A short written map of paths and responsibilities makes later feature work faster and safer.
+
+## Exercise #3 — Vibe Coding
 
 **Why refdesk**
 
-- Chose refdesk because I wanted a practical personal resource manager for storing and organizing links and different types of resources such as PDF, Excel, PPTX, DOCX, and images.
+- Chose to build refdesk as a practical personal resource manager for storing and organizing links and resources such as PDF, Excel, PPTX, DOCX, and images.
 
 **How it was built**
 
-- Built the app from scratch with the help of a coding agent, without manually writing the application code, as required by the exercise.
+- Built refdesk from scratch using vibe coding with a coding agent, without manually writing the application code, as required by the exercise.
 
 ## Exercise #4 — Agent / skill setup
 
